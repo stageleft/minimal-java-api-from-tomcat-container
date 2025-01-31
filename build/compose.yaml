@@ -1,0 +1,6 @@
+services:
+  tomcat-java-api:
+    image: tomcat-java-api:latest
+    build:
+      context: ..
+      dockerfile: build/Dockerfile
