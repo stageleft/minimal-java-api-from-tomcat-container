@@ -296,7 +296,7 @@ root@603e55c118ce:/usr/local/tomcat/webapps.dist# exit
 build$ docker compose down
 ```
 
-## APIアプリの作成
+## APIアプリの作成（１）テンプレートの作成
 
 https://qiita.com/lz910201/items/ee5546a614ed3ccaaa23 によれば、[Spring Initializr](https://start.spring.io/)なるWebツールで初期ディレクトリを構築するらしい。
 
@@ -343,3 +343,74 @@ $ sudo apt install unzip
 $ unzip sample.zip
 $ git add .
 ```
+
+## APIアプリの作成（２）ローカル WSL に Java 環境を構築
+
+devContainer ならともかく、 tomcat コンテナでのjavaアプリビルドは無理があるので、
+ホストWSLにもJavaを入れておく。
+
+```sh
+$ sudo apt install openjdk-21-jdk
+$ java --version
+openjdk 21.0.5 2024-10-15
+OpenJDK Runtime Environment (build 21.0.5+11-Ubuntu-1ubuntu124.04)
+OpenJDK 64-Bit Server VM (build 21.0.5+11-Ubuntu-1ubuntu124.04, mixed mode, sharing)
+$ javac --version
+javac 21.0.5
+```
+
+パッチバージョンは異なるが、よさげなので進める。
+
+## APIアプリの作成（３）コントローラーのコーディング
+
+API応答するコードを作っていく。今回は SampleController.kt とする。
+前述のページはHTMLファイルを返す感じだったので、以下のページに乗り換える。
+https://tatsurotech.hatenablog.com/entry/springboot/rest-api-basic
+https://spring.pleiades.io/guides/gs/rest-service
+
+```sh
+$ pushd sample/src/main/kotlin/com/example/sample/
+sample/src/main/kotlin/com/example/sample$ touch SampleController.kt
+sample/src/main/kotlin/com/example/sample$ cat SampleController.kt
+package com.example.sample
+
+// springframework の annotation を import する
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RestController
+
+data class SampleResponse(
+        val status: String,
+        val message: String
+)
+
+@RestController
+public class SampleController {
+        @GetMapping("/")
+        fun hello() = SampleResponse("ok", "Hello, World!")
+}
+sample/src/main/kotlin/com/example/sample$ popd
+```
+
+データクラスとコントローラークラスのファイルが１つになっており言語設計方針には反していそうだが、
+個人的に好きなのでこのまま進める。
+SampleController.kt を作成できたら、ビルド＆実行してみる。
+
+```sh
+$ cd sample
+sample$ ./gradlew build
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+
+BUILD SUCCESSFUL in 8s
+8 actionable tasks: 7 executed, 1 up-to-date
+sample$ ./gradlew bootRun
+（抜粋）
+2025-02-01T12:05:36.094+09:00  INFO 54491 --- [sample] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
+```
+上記 terminal は実行中になるので、別のterminalを立ち上げ、動作確認を行う。
+```sh
+$ curl http://localhost:8080/
+{"status":"ok","message":"Hello, World!"}
+```
+うまく行ったらしい。
+
+## APIアプリの作成（４）Tomcatへの上記アプリ組み込み
