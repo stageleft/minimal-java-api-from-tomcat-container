@@ -78,6 +78,7 @@ root@db618196f52e:/usr/local/tomcat# ls
 bin           conf             filtered-KEYS  LICENSE  native-jni-lib  README.md      RUNNING.txt  upstream-KEYS  webapps.dist
 BUILDING.txt  CONTRIBUTING.md  lib            logs     NOTICE          RELEASE-NOTES  temp         webapps        work
 root@db618196f52e:/usr/local/tomcat# exit
+build$ sudo apt install jq
 build$ docker inspect build-tomcat-java-api-1 | jq '.[].Config.Cmd'
 [
   "catalina.sh",
