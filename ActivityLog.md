@@ -303,7 +303,7 @@ https://qiita.com/lz910201/items/ee5546a614ed3ccaaa23 によれば、[Spring Ini
 Spring Initializr のページはこっそり Kotlin を推しているようなの画面レイアウトに見えた。
 この機会に Kotlin にも触れてみよう（とやると悪いハマり方するのだが、まあそれも経験ということで）。
 
-キーワード Kotlin + Spring Boot で検索、準公式っぽいサイトに当たったので、 https://spring.pleiades.io/guides/tutorials/spring-boot-kotlin をもとに
+キーワード Kotlin + Spring Boot で検索、準公式っぽいサイトに当たったので、 https://spring.pleiades.io/guides/tutorials/spring-boot-kotlin をもとに、以下のとおり設定する。
 
 * Project : Gradle - Kotlin
 * Language : Kotlin
@@ -413,4 +413,173 @@ $ curl http://localhost:8080/
 ```
 うまく行ったらしい。
 
+## APIアプリの作成（４）WARファイルの作成、実行、内容確認
+
+tomcatに組み込むにあたっては、展開済みWARファイルを /usr/local/tomcat/webapps/ 配下にコピーしたい。
+このため、いったんはビルドシステム上でWARファイルを作る。
+
+```sh
+sample$ ./gradlew bootWar
+sample$ find . -type f | grep war
+./build/libs/sample-0.0.1-SNAPSHOT-plain.war
+./build/libs/sample-0.0.1-SNAPSHOT.war
+./build/tmp/war/MANIFEST.MF
+sample$ java -jar build/libs/sample-0.0.1-SNAPSHOT.war 
+（抜粋）
+2025-02-01T12:30:30.412+09:00  INFO 62091 --- [sample] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
+```
+上記も terminal は実行中になるので、別のterminalを立ち上げ、動作確認を行う。
+```sh
+$ curl http://localhost:8080/
+{"status":"ok","message":"Hello, World!"}
+```
+うまく行ったので分析に入る。
+```sh
+sample$ jar tf build/libs/sample-0.0.1-SNAPSHOT-plain.war | grep -v "/$"
+META-INF/MANIFEST.MF
+WEB-INF/classes/META-INF/sample.kotlin_module
+WEB-INF/classes/com/example/sample/SampleController.class
+WEB-INF/classes/com/example/sample/SampleResponse.class
+WEB-INF/classes/com/example/sample/SampleApplication.class
+WEB-INF/classes/com/example/sample/ServletInitializer.class
+WEB-INF/classes/com/example/sample/SampleApplicationKt.class
+WEB-INF/classes/application.properties
+WEB-INF/lib/spring-boot-starter-web-3.4.2.jar
+WEB-INF/lib/spring-boot-starter-json-3.4.2.jar
+WEB-INF/lib/jackson-datatype-jdk8-2.18.2.jar
+WEB-INF/lib/jackson-datatype-jsr310-2.18.2.jar
+WEB-INF/lib/jackson-module-parameter-names-2.18.2.jar
+WEB-INF/lib/jackson-databind-2.18.2.jar
+WEB-INF/lib/jackson-annotations-2.18.2.jar
+WEB-INF/lib/jackson-core-2.18.2.jar
+WEB-INF/lib/jackson-module-kotlin-2.18.2.jar
+WEB-INF/lib/kotlin-reflect-1.9.25.jar
+WEB-INF/lib/kotlin-stdlib-1.9.25.jar
+WEB-INF/lib/annotations-13.0.jar
+WEB-INF/lib/spring-boot-starter-3.4.2.jar
+WEB-INF/lib/spring-webmvc-6.2.2.jar
+WEB-INF/lib/spring-web-6.2.2.jar
+WEB-INF/lib/spring-boot-autoconfigure-3.4.2.jar
+WEB-INF/lib/spring-boot-3.4.2.jar
+WEB-INF/lib/spring-boot-starter-logging-3.4.2.jar
+WEB-INF/lib/spring-context-6.2.2.jar
+WEB-INF/lib/spring-aop-6.2.2.jar
+WEB-INF/lib/spring-beans-6.2.2.jar
+WEB-INF/lib/spring-expression-6.2.2.jar
+WEB-INF/lib/spring-core-6.2.2.jar
+WEB-INF/lib/snakeyaml-2.3.jar
+WEB-INF/lib/micrometer-observation-1.14.3.jar
+WEB-INF/lib/logback-classic-1.5.16.jar
+WEB-INF/lib/log4j-to-slf4j-2.24.3.jar
+WEB-INF/lib/jul-to-slf4j-2.0.16.jar
+WEB-INF/lib/spring-jcl-6.2.2.jar
+WEB-INF/lib/micrometer-commons-1.14.3.jar
+WEB-INF/lib/logback-core-1.5.16.jar
+WEB-INF/lib/slf4j-api-2.0.16.jar
+WEB-INF/lib/log4j-api-2.24.3.jar
+```
+なお、別途 sample-0.0.1-SNAPSHOT-plain.war と sample-0.0.1-SNAPSHOT-plain.war に含まれているファイルを比較したところ、結果は以下の通りだった。
+* sample-0.0.1-SNAPSHOT-plain.war のみにあるのは以下。
+  * WEB-INF/lib/spring-boot-starter-web-3.4.2.jar
+  * WEB-INF/lib/spring-boot-starter-json-3.4.2.jar
+  * WEB-INF/lib/spring-boot-starter-3.4.2.jar
+  * WEB-INF/lib/spring-boot-starter-logging-3.4.2.jar
+* sample-0.0.1-SNAPSHOT.war のみにあるのは以下。
+  * META-INF/services/java.nio.file.spi.FileSystemProvider
+  * org/springframework/boot/loader/ 以下の多数のクラスファイル
+  * WEB-INF/lib-provided/spring-boot-starter-tomcat-3.4.2.jar
+  * WEB-INF/lib-provided/jakarta.annotation-api-2.1.1.jar
+  * WEB-INF/lib-provided/tomcat-embed-websocket-10.1.34.jar
+  * WEB-INF/lib-provided/tomcat-embed-core-10.1.34.jar
+  * WEB-INF/lib-provided/tomcat-embed-el-10.1.34.jar
+  * WEB-INF/lib/spring-boot-jarmode-tools-3.4.2.jar
+  * WEB-INF/classpath.idx
+  * WEB-INF/layers.idx
+
 ## APIアプリの作成（４）Tomcatへの上記アプリ組み込み
+
+tomcatサンプルのMETA-INF と WEB-INFについては、最低限 sample-0.0.1-SNAPSHOT-plain.war に含まれていそうだった。
+これを build ディレクトリに取り込んで、ファイル名をAPIのURLに変更する。
+
+```sh
+sample$ cp build/libs/sample-0.0.1-SNAPSHOT-plain.war ../build/
+build$ cat Dockerfile
+（抜粋）
+ADD build/sample-0.0.1-SNAPSHOT-plain.war /usr/local/tomcat/webapps/sample.war
+build$ docker compose build && docker compose up -d
+```
+コンテナ内外で動作確認。
+```sh
+$ docker exec -it build-tomcat-java-api-1 bash
+root@d73cce6df55d:/usr/local/tomcat# curl http://localhost:8080/sample/
+{"status":"ok","message":"Hello, World!"}
+$ curl http://localhost/sample/
+{"status":"ok","message":"Hello, World!"}
+```
+Windows（ブラウザ）からの確認も以下の通りOK。
+<img src="./ActivityLog_Image/2025-02-01_03.png" alt="APIの初期応答もちゃんと返った。" width="640">
+
+ちなみに、コンテナの中身は以下のとおり。
+> webapps 以下に war ファイルを置くだけでデプロイすることができます
+との記載が正しいことを確認できた。
+```sh
+$ docker exec -it build-tomcat-java-api-1 bash
+root@d73cce6df55d:/usr/local/tomcat# cd webapps
+root@d73cce6df55d:/usr/local/tomcat/webapps# ls -l
+total 18720
+lrwxrwxrwx 1 root root       35 Feb  1 01:38 docs -> /usr/local/tomcat/webapps.dist/docs
+drwxr-x--- 4 root root     4096 Feb  1 03:52 sample
+-rw-r--r-- 1 root root 19163123 Feb  1 03:47 sample.war
+root@d73cce6df55d:/usr/local/tomcat/webapps# find sample -type f
+sample/WEB-INF/lib/spring-boot-starter-logging-3.4.2.jar
+sample/WEB-INF/lib/jackson-module-kotlin-2.18.2.jar
+sample/WEB-INF/lib/spring-beans-6.2.2.jar
+sample/WEB-INF/lib/jackson-datatype-jdk8-2.18.2.jar
+sample/WEB-INF/lib/spring-aop-6.2.2.jar
+sample/WEB-INF/lib/log4j-api-2.24.3.jar
+sample/WEB-INF/lib/annotations-13.0.jar
+sample/WEB-INF/lib/jackson-datatype-jsr310-2.18.2.jar
+sample/WEB-INF/lib/spring-jcl-6.2.2.jar
+sample/WEB-INF/lib/spring-webmvc-6.2.2.jar
+sample/WEB-INF/lib/micrometer-observation-1.14.3.jar
+sample/WEB-INF/lib/micrometer-commons-1.14.3.jar
+sample/WEB-INF/lib/jackson-module-parameter-names-2.18.2.jar
+sample/WEB-INF/lib/logback-core-1.5.16.jar
+sample/WEB-INF/lib/spring-boot-starter-json-3.4.2.jar
+sample/WEB-INF/lib/spring-context-6.2.2.jar
+sample/WEB-INF/lib/jackson-core-2.18.2.jar
+sample/WEB-INF/lib/jackson-databind-2.18.2.jar
+sample/WEB-INF/lib/jackson-annotations-2.18.2.jar
+sample/WEB-INF/lib/spring-boot-starter-web-3.4.2.jar
+sample/WEB-INF/lib/logback-classic-1.5.16.jar
+sample/WEB-INF/lib/jul-to-slf4j-2.0.16.jar
+sample/WEB-INF/lib/spring-web-6.2.2.jar
+sample/WEB-INF/lib/snakeyaml-2.3.jar
+sample/WEB-INF/lib/spring-core-6.2.2.jar
+sample/WEB-INF/lib/log4j-to-slf4j-2.24.3.jar
+sample/WEB-INF/lib/spring-expression-6.2.2.jar
+sample/WEB-INF/lib/slf4j-api-2.0.16.jar
+sample/WEB-INF/lib/spring-boot-starter-3.4.2.jar
+sample/WEB-INF/lib/spring-boot-3.4.2.jar
+sample/WEB-INF/lib/kotlin-reflect-1.9.25.jar
+sample/WEB-INF/lib/spring-boot-autoconfigure-3.4.2.jar
+sample/WEB-INF/lib/kotlin-stdlib-1.9.25.jar
+sample/WEB-INF/classes/META-INF/sample.kotlin_module
+sample/WEB-INF/classes/application.properties
+sample/WEB-INF/classes/com/example/sample/SampleController.class
+sample/WEB-INF/classes/com/example/sample/SampleResponse.class
+sample/WEB-INF/classes/com/example/sample/SampleApplication.class
+sample/WEB-INF/classes/com/example/sample/ServletInitializer.class
+sample/WEB-INF/classes/com/example/sample/SampleApplicationKt.class
+sample/META-INF/MANIFEST.MF
+sample/META-INF/war-tracker
+```
+
+## 作業を完走した感想その他
+
+普段、WebアプリはJavascriptで作っているが、今回Java（Kotlin）で初めて作ってみた記録となる。
+JavaでWebアプリを作る際の annotation についてどうしても理解できなかったところ、 import 分の失念によるエラーで理解が出来たところが個人的に大きい。
+
+当然、本プロジェクトの内容をそのまま使えるわけではない。
+sample-0.0.1-SNAPSHOT-plain.war の取り回しは業務運用を想定すると論外であり、CI/CDのアーティファクト等で処理すべきところではある。
+が、 Spring Initializr のところといい、リポジトリからでは見えない手順ノウハウとして残せたことは、本プロジェクトとしてはより大きな成果を得られたものと思っている。
