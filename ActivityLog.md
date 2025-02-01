@@ -166,7 +166,115 @@ build$ docker compose build && docker compose up -d
 
 上記の結果として、手元ブラウザの http://localhost/ からコンテナにアクセスできるようになった。
 
-<img src="./ActivityLog_Image/2025-02-01.png" alt="ブラウザからWSL上のHTTPコンテナにアクセスできるようになりました。" width="640">
+<img src="./ActivityLog_Image/2025-02-01_00.png" alt="ブラウザからWSL上のHTTPコンテナにアクセスできるようになりました。" width="640">
 
 中身のコンテンツを何も設定できていないので４０４エラーになっているが、あたりまえ体操なので問題ない。
 HTTPエラーが発生しているということは、ネットワークエラーが発生していない、すなわちHTTPサーバに正しくアクセスできているということである。
+
+## （寄り道）Tomcatの設定方法確認
+
+ここまでの手順にて、ブラウザからTomcatにアクセスできた。
+しかし、ブラウザにアクセスしても /docs/config/server.html が読めない。
+/docs ディレクトリや中身はあるが、 /webapps.dist/ が公開されていなさそう。
+
+```sh
+build$ docker exec -it build-tomcat-java-api-1 bash
+root@345adeba55d1:/usr/local/tomcat# find . | grep docs
+（出力は抜粋かつ行入れ替え実施）
+./webapps.dist/docs/index.html
+./webapps.dist/docs/cluster-howto.html
+./webapps.dist/docs/jndi-resources-howto.html
+./webapps.dist/docs/config/index.html
+./webapps.dist/docs/config/server.html
+./webapps.dist/docs/config/listeners.html
+./webapps.dist/docs/config/service.html
+./webapps.dist/docs/config/http.html
+./webapps.dist/docs/config/ajp.html
+./webapps.dist/docs/config/engine.html
+./webapps.dist/docs/config/cluster.html
+./webapps.dist/docs/config/valve.html
+root@345adeba55d1:/usr/local/tomcat# grep -nr "webapps\.dist" || echo "NOT FOUND."
+NOT FOUND.
+```
+
+上記設定を探していたが、 https://qiita.com/hidekatsu-izuno/items/ab604b6c764b5b5a86ed なるQiita記事を発見した。
+一旦、こちらを読み進めてみると、
+
+> manager は以前のバージョンではデプロイに必要になる場合もありましたが、最近のバージョンでは、webapps 以下に war ファイルを置くだけでデプロイすることができますし、追加の設定も war ファイルの META-INF/context.xml に書くことが可能なので削除しても特に困ることはありません。
+
+とあったので、 webapps 以下でやりたいことをやれ、と読んだ。
+
+```sh
+root@345adeba55d1:/usr/local/tomcat# ls
+bin  BUILDING.txt  conf  CONTRIBUTING.md  filtered-KEYS  lib  LICENSE  logs  native-jni-lib  NOTICE  README.md  RELEASE-NOTES  RUNNING.txt  temp  upstream-KEYS  webapps  webapps.dist  work
+root@345adeba55d1:/usr/local/tomcat# cd webapps
+root@345adeba55d1:/usr/local/tomcat/webapps# ln -sf ../webapps.dist/docs
+root@345adeba55d1:/usr/local/tomcat/webapps# ls -l
+total 0
+lrwxrwxrwx 1 root root 20 Feb  1 01:02 docs -> ../webapps.dist/docs
+```
+
+手元ブラウザで http://localhost/docs/ にアクセスしてみる。403エラーということは404エラーではない、すなわち docs ディレクトリは認識しているということだ。
+
+<img src="./ActivityLog_Image/2025-02-01_01.png" alt="ドキュメントを読もうとしたら403エラー。まだまだ設定が必要" width="640">
+
+> If you wish to modify this restriction, you'll need to edit the documentation web applications's context.xml file. 
+
+とあるので、 docs/context.xml の設定を試みるのが良さそう。
+
+```sh
+root@345adeba55d1:/usr/local/tomcat# find . | grep context.xml 
+./conf/context.xml
+./webapps.dist/examples/META-INF/context.xml
+./webapps.dist/host-manager/META-INF/context.xml
+./webapps.dist/docs/META-INF/context.xml
+./webapps.dist/manager/META-INF/context.xml
+root@345adeba55d1:/usr/local/tomcat# cd webapps.dist/docs/META-INF/
+root@345adeba55d1:/usr/local/tomcat# cat context.xml
+（抜粋）
+<Context antiResourceLocking="false" ignoreAnnotations="true">
+  <Valve className="org.apache.catalina.valves.RemoteAddrValve"
+         allow="127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1" />
+</Context>
+```
+
+確かに、 IPアドレスとして、127.x.x.x、::1、0:0:0:0:0:0:0:1、つまりローカルホストしか記載していない。エラーページの、
+
+> By default the documentation web application is only accessible from a browser running on the same machine as Tomcat.
+
+の記載に一致する。さらに寄り道して、コンテナ内、WSL内のどちらが「the same machine as Tomcat」かを抑えておく。
+
+```sh
+root@345adeba55d1:/usr/local/tomcat# curl http://localhost:8080/docs/
+（ページが表示された。内容略）
+root@345adeba55d1:/usr/local/tomcat# exit
+build$ curl http://localhost/docs/
+（４０３エラーページが表示された。内容略）
+```
+
+というわけで、「the same machine as Tomcat」はコンテナ内のみであった。
+tomcatコンテナにはviもnanoも入っていないようなので、大人しくDockerfileから書き換える。
+
+```sh
+build$ mkdir ../tomcat_docs && pushd $_
+tomcat_docs$ cat context.xml
+（抜粋）
+<Context antiResourceLocking="false" ignoreAnnotations="true">
+  <!--
+  <Valve className="org.apache.catalina.valves.RemoteAddrValve"
+         allow="127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1" />
+  -->
+</Context>
+tomcat_docs$ popd
+build$ cat Dockerfile
+（抜粋）
+COPY ../tomcat_docs/context.xml    /usr/local/tomcat/webapps.dist/docs/META-INF/
+RUN ln -sf /usr/local/tomcat/webapps.dist/docs /usr/local/tomcat/webapps/docs
+build$ docker compose build && docker compose up -d
+```
+
+こうして、無事 http://localhost/docs/ にアクセスできました。
+
+<img src="./ActivityLog_Image/2025-02-01_02.png" alt="ドキュメントを読めたぜ。" width="640">
+
+あれ、これって https://tomcat.apache.org/tomcat-11.0-doc/ と全く同じでは...？ ちくしょう、おあとがよろしいようで。
