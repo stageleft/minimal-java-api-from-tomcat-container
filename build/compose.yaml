@@ -4,3 +4,8 @@ services:
     build:
       context: ..
       dockerfile: build/Dockerfile
+    ports:
+      - target: 8080
+        published: 80
+        protocol: tcp
+        mode: host
