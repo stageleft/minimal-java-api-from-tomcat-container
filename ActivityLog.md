@@ -278,3 +278,68 @@ build$ docker compose build && docker compose up -d
 <img src="./ActivityLog_Image/2025-02-01_02.png" alt="ドキュメントを読めたぜ。" width="640">
 
 あれ、これって https://tomcat.apache.org/tomcat-11.0-doc/ と全く同じでは...？ ちくしょう、おあとがよろしいようで。
+
+## （確認）APIアプリの作成方針の確認
+
+上記寄り道は、サンプルアプリの docs ディレクトリについて、手で考察した作業記録としての効果があった。
+下記はtomcatが用意したサンプルアプリと思われるが、全て META-INF ディレクトリと WEB_INF ディレクトリを持っていた。
+
+```sh
+root@603e55c118ce:/usr/local/tomcat/webapps.dist# ls
+docs  examples  host-manager  manager  ROOT
+```
+
+つまり、最小APIのJavaプロジェクトは、単にWARファイルを作れば良い、ということになる。完成形は定まった（というか、個人的にようやく理解した）。
+
+```sh
+root@603e55c118ce:/usr/local/tomcat/webapps.dist# exit
+build$ docker compose down
+```
+
+## APIアプリの作成
+
+https://qiita.com/lz910201/items/ee5546a614ed3ccaaa23 によれば、[Spring Initializr](https://start.spring.io/)なるWebツールで初期ディレクトリを構築するらしい。
+
+Spring Initializr のページはこっそり Kotlin を推しているようなの画面レイアウトに見えた。
+この機会に Kotlin にも触れてみよう（とやると悪いハマり方するのだが、まあそれも経験ということで）。
+
+キーワード Kotlin + Spring Boot で検索、準公式っぽいサイトに当たったので、 https://spring.pleiades.io/guides/tutorials/spring-boot-kotlin をもとに
+
+* Project : Gradle - Kotlin
+* Language : Kotlin
+* Spring Boot : 3.4.2 （これより新しいのはstableじゃないっぽい...）
+* Project Metadata
+  * Group はデフォルトそのまま。
+  * Artifact : sample とする。設定時、 Name, Package Name が追従して変更された。
+  * Descripton : Sample Project
+  * Packaging : War。Tomcatを使うのでこちら。
+  * Java : 21。理由は後述。
+* Dependencies は以下を選択。
+  * Spring Web
+
+javaバージョンを21とした理由は、 tomcat:latest コンテナに合わせたため。
+```sh
+root@603e55c118ce:/usr/local/tomcat# java --version
+openjdk 21.0.6 2025-01-21 LTS
+OpenJDK Runtime Environment Temurin-21.0.6+7 (build 21.0.6+7-LTS)
+OpenJDK 64-Bit Server VM Temurin-21.0.6+7 (build 21.0.6+7-LTS, mixed mode, sharing)
+root@603e55c118ce:/usr/local/tomcat# javac --version
+javac 21.0.6
+```
+念のため、この時点でコンテナのバージョンを確定させておく。
+https://hub.docker.com/_/tomcat によれば、本日時点で tomcat:latest は 11.0.2-jdk21-temurin-noble であった。
+
+```sh
+build$ cat Dockerfile
+（抜粋）
+FROM tomcat:11.0.2-jdk21-temurin-noble
+build$ docker compose build && docker compose up -d
+```
+
+生成した sample.zip はそのまま展開する。展開前のファイルも含め、本リポジトリに登録。
+
+```sh
+$ sudo apt install unzip
+$ unzip sample.zip
+$ git add .
+```
